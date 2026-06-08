@@ -26,4 +26,6 @@ Touch calibration runs on first boot. To recalibrate, hold `BOOT`, tap `RESET`, 
 
 `preview/` is the browser demo for design review and video recording. Open `preview/index.html` locally or deploy that folder to Vercel.
 
+Live preview: https://preview-mauve-gamma.vercel.app
+
 Both versions show the same flow: tap entry, load setup, wash countdown, green pickup grace period, red overdue idle timer, remind, and collected reset.
