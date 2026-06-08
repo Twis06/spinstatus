@@ -1,29 +1,10 @@
-# Hosyond ESP32 Washer Panel
+# spinstatus
 
-PlatformIO/Arduino firmware for the Hosyond/LCDWIKI E32R40T-style 4.0 inch ESP32-32E display module. The UI uses LovyanGFX for the ST7796S display and XPT2046_Touchscreen for touch input.
+Smart washer control-panel prototype for a Hosyond/LCDWIKI ESP32-32E 4.0 inch touch display.
 
-## Hardware Target
+## Firmware
 
-- ESP32-WROOM-32E module
-- 4.0 inch ST7796S TFT, 320x480 native resolution
-- XPT2046 resistive touch
-- Landscape app layout: 480x320
-
-GPIO mapping follows LCDWIKI's E32R40T documentation:
-
-| Function | GPIO |
-| --- | ---: |
-| TFT CS | 15 |
-| TFT DC/RS | 2 |
-| TFT SCK | 14 |
-| TFT MOSI | 13 |
-| TFT MISO | 12 |
-| TFT reset | EN |
-| TFT backlight | 27 |
-| Touch CS | 33 |
-| Touch IRQ | 36 |
-
-## Build And Upload
+`src/main.cpp` is the PlatformIO/Arduino firmware for the real ESP32 screen. It uses LovyanGFX for the ST7796S display and XPT2046 touch.
 
 ```sh
 pio run
@@ -31,17 +12,18 @@ pio run -t upload
 pio device monitor
 ```
 
-This workspace did not have `pio` on PATH when the project was generated. Install PlatformIO Core or open the folder with the VS Code PlatformIO extension before building.
+Target hardware:
 
-## Touch Calibration
+- ESP32-WROOM-32E
+- 4.0 inch ST7796S TFT, 480 x 320 landscape UI
+- XPT2046 resistive touch
+- LCD SPI: SCK 14, MOSI 13, MISO 12, CS 15, DC 2
+- Backlight 27, touch CS 33, touch IRQ 36
 
-On first boot after this LovyanGFX rewrite, the firmware enters a 5-point touch calibration screen and saves the result in ESP32 NVS flash.
+Touch calibration runs on first boot. To recalibrate, hold `BOOT`, tap `RESET`, then release `BOOT`.
 
-To force recalibration later:
+## Preview
 
-1. Hold the board's `BOOT` button.
-2. Press and release `RESET`.
-3. Release `BOOT` when the calibration screen appears.
-4. Tap and hold each target.
+`preview/` is the browser demo for design review and video recording. Open `preview/index.html` locally or deploy that folder to Vercel.
 
-The firmware prints raw calibration points to Serial only during calibration. Normal touch handling does not continuously log touch data, which keeps the UI more responsive.
+Both versions show the same flow: tap entry, load setup, wash countdown, green pickup grace period, red overdue idle timer, remind, and collected reset.

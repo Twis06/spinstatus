@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>spinstatus demo preview</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="intro-open">
+    <main class="demo-app">
+      <aside class="control-dock" aria-label="Preview controls">
+        <div class="dock-heading">
+          <p>ESP32 DISPLAY DEMO</p>
+          <h1>spinstatus</h1>
+        </div>
+
+        <section class="control-group">
+          <h2>Screen</h2>
+          <div class="segmented">
+            <button class="active" data-preview-state="welcome">Entry</button>
+            <button data-preview-state="setup">Setup</button>
+            <button data-preview-state="running">Wash</button>
+            <button data-preview-state="idle">Idle</button>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <h2>Demo</h2>
+          <button class="dock-button primary" id="guided-demo">Play step-by-step demo</button>
+          <button class="dock-button" id="restart-demo">Reset flow</button>
+          <button class="dock-button" id="record-mode">Record mode</button>
+          <label class="toggle-row">
+            <input id="caption-toggle" type="checkbox" checked />
+            <span>Show captions</span>
+          </label>
+        </section>
+
+        <section class="control-group">
+          <h2>Timing</h2>
+          <label class="field-row" for="speed">
+            <span>Timer speed</span>
+            <select id="speed">
+              <option value="1">1x</option>
+              <option value="10" selected>10x</option>
+              <option value="30">30x</option>
+              <option value="60">60x</option>
+            </select>
+          </label>
+          <label class="field-row" for="scale">
+            <span>Display scale</span>
+            <input id="scale" type="range" min="0.9" max="1.8" step="0.05" value="1.45" />
+          </label>
+        </section>
+      </aside>
+
+      <section class="theater" aria-label="spinstatus display emulator">
+        <div class="soft-glow one"></div>
+        <div class="soft-glow two"></div>
+
+        <div class="device-frame" id="device-frame">
+          <div class="screen" id="screen" data-state="welcome">
+            <header class="screen-header">
+              <span class="brand">spinstatus</span>
+              <span class="status-dot" aria-hidden="true"></span>
+            </header>
+
+            <section class="screen-view welcome-view active" data-view="welcome">
+              <button class="entry-card" id="enter-button" aria-label="Begin washer flow">
+                <span class="card-icon" aria-hidden="true"></span>
+                <span>TAP TO BEGIN</span>
+              </button>
+            </section>
+
+            <section class="screen-view setup-view" data-view="setup" aria-hidden="true">
+              <div class="load-panel panel">
+                <span class="device-label">LOAD SIZE</span>
+                <div class="load-buttons">
+                  <button class="device-button load-button" data-load="SMALL">SMALL</button>
+                  <button class="device-button load-button active" data-load="MED">MED</button>
+                  <button class="device-button load-button" data-load="LARGE">LARGE</button>
+                </div>
+              </div>
+
+              <div class="fabric-panel panel">
+                <span class="device-label">FABRIC</span>
+                <button class="device-button fabric-button" id="fabric-button">NORMAL</button>
+              </div>
+
+              <div class="start-panel panel">
+                <button class="device-button primary start-button" id="start-button">START</button>
+              </div>
+            </section>
+
+            <section class="screen-view running-view" data-view="running" aria-hidden="true">
+              <div class="timer-panel panel running-timer-panel">
+                <div class="timer-meta">
+                  <span class="device-label">TIME REMAINING</span>
+                  <span id="cycle-meta">MED / NORMAL</span>
+                </div>
+                <strong class="timer-value" id="countdown-value">02:00</strong>
+              </div>
+
+              <span class="device-label progress-label">CYCLE PROGRESS</span>
+              <div class="progress-track"><span id="progress-fill"></span></div>
+              <button class="device-button finish-button" id="finish-button">FINISH</button>
+            </section>
+
+            <section class="screen-view idle-view" data-view="idle" aria-hidden="true">
+              <div class="timer-panel panel idle-timer-panel">
+                <div class="timer-meta">
+                  <span class="device-label">LOADED IDLE TIME</span>
+                </div>
+                <strong class="timer-value idle-value" id="idle-value">+00:00</strong>
+              </div>
+
+              <div class="idle-warning" id="idle-warning">READY FOR PICKUP</div>
+              <button class="device-button remind-button" id="remind-button">REMIND</button>
+              <button class="device-button primary collected-button" id="collected-button">COLLECTED</button>
+            </section>
+          </div>
+        </div>
+
+        <div class="caption-line" id="caption-line" aria-live="polite">
+          <span class="caption-step" id="caption-step">1 / 8</span>
+          <span class="caption-text" id="caption-text">Tap to begin the washer check-in flow.</span>
+        </div>
+      </section>
+    </main>
+
+    <section class="intro-overlay" id="intro-overlay" aria-label="Demo introduction">
+      <div class="intro-card">
+        <p>SMART WASHER PANEL</p>
+        <h2>spinstatus</h2>
+        <span>Done loads turn green. After a 5-minute grace period, overdue idle time turns red so the next user can remove laundry fairly.</span>
+        <div class="intro-actions">
+          <button id="intro-play">Play demo</button>
+          <button id="intro-skip">Skip</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

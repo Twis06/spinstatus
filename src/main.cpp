@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <LovyanGFX.hpp>
 #include <Preferences.h>
-#include <math.h>
 #include <string.h>
 
 namespace {
@@ -22,8 +21,8 @@ constexpr int PIN_SPI_MOSI = 13;
 constexpr uint32_t WASH_DURATION_MS = 120000UL;
 constexpr uint32_t TOUCH_POLL_MS = 18;
 constexpr uint32_t UI_TICK_MS = 100;
-constexpr uint32_t MOTION_FRAME_MS = 120;
 constexpr uint32_t REMIND_FLASH_MS = 1800;
+constexpr uint32_t IDLE_GRACE_MS = 300000UL;
 constexpr uint32_t TOUCH_CAL_MAGIC = 0x53503233UL;
 
 class LGFX : public lgfx::LGFX_Device {
@@ -145,11 +144,11 @@ bool wasTouching = false;
 bool dirty = true;
 bool touchCalibrated = false;
 bool remindFlash = false;
+bool idleOverdueShown = false;
 
 uint32_t stateStartedAt = 0;
 uint32_t lastTouchPoll = 0;
 uint32_t lastUiTick = 0;
-uint32_t lastMotionFrame = 0;
 uint32_t lastSecondsShown = UINT32_MAX;
 uint32_t lastProgressShown = UINT32_MAX;
 uint32_t remindFlashUntil = 0;
@@ -161,33 +160,34 @@ constexpr Rect LOAD_BUTTONS[] = {
     {179, 118, 122, 46},
     {322, 118, 122, 46},
 };
-constexpr Rect DELICATES_BUTTON = {34, 214, 190, 58};
-constexpr Rect START_BUTTON = {280, 200, 166, 72};
+constexpr Rect DELICATES_BUTTON = {36, 228, 190, 46};
+constexpr Rect START_BUTTON = {274, 214, 166, 58};
 constexpr Rect FINISH_BUTTON = {326, 216, 110, 42};
-constexpr Rect REMIND_BUTTON = {34, 242, 132, 46};
-constexpr Rect RETRIEVED_BUTTON = {278, 232, 168, 58};
+constexpr Rect REMIND_BUTTON = {34, 252, 132, 42};
+constexpr Rect RETRIEVED_BUTTON = {278, 252, 168, 42};
 constexpr Rect TIMER_RECT = {24, 74, 432, 136};
 constexpr Rect TIMER_VALUE_RECT = {36, 108, 408, 82};
 constexpr Rect PROGRESS_RECT = {44, 236, 270, 12};
-constexpr Rect MOTION_RECT = {44, 266, 392, 34};
-constexpr Rect WELCOME_SCAN_RECT = {46, 118, 388, 76};
 
 uint16_t color(uint8_t r, uint8_t g, uint8_t b) {
   return lcd.color565(r, g, b);
 }
 
-const uint16_t C_BG = color(8, 11, 14);
-const uint16_t C_PANEL = color(18, 22, 27);
-const uint16_t C_PANEL_2 = color(28, 34, 40);
-const uint16_t C_LINE = color(51, 60, 68);
-const uint16_t C_TEXT = color(234, 240, 244);
-const uint16_t C_MUTED = color(126, 140, 151);
-const uint16_t C_CYAN = color(64, 225, 210);
-const uint16_t C_BLUE = color(68, 137, 255);
-const uint16_t C_GREEN = color(71, 218, 138);
-const uint16_t C_YELLOW = color(236, 188, 81);
-const uint16_t C_RED = color(235, 64, 68);
-const uint16_t C_RED_DARK = color(74, 24, 27);
+const uint16_t C_BG = color(249, 247, 253);
+const uint16_t C_PANEL = color(255, 255, 255);
+const uint16_t C_PANEL_2 = color(245, 242, 250);
+const uint16_t C_LINE = color(229, 224, 239);
+const uint16_t C_TEXT = color(45, 41, 54);
+const uint16_t C_MUTED = color(126, 118, 143);
+const uint16_t C_HEADER = color(184, 164, 232);
+const uint16_t C_ACCENT = color(126, 96, 202);
+const uint16_t C_ACCENT_SOFT = color(239, 234, 252);
+const uint16_t C_READY = color(47, 163, 107);
+const uint16_t C_READY_SOFT = color(232, 247, 239);
+const uint16_t C_READY_PANEL = color(251, 255, 252);
+const uint16_t C_RED = color(217, 63, 67);
+const uint16_t C_RED_DARK = color(252, 232, 232);
+const uint16_t C_RED_PANEL = color(255, 248, 248);
 
 int16_t clampToScreen(long value, int16_t maxValue) {
   if (value < 0) {
@@ -197,25 +197,6 @@ int16_t clampToScreen(long value, int16_t maxValue) {
     return maxValue;
   }
   return static_cast<int16_t>(value);
-}
-
-uint8_t red565(uint16_t c) {
-  return static_cast<uint8_t>(((c >> 11) & 0x1F) * 255 / 31);
-}
-
-uint8_t green565(uint16_t c) {
-  return static_cast<uint8_t>(((c >> 5) & 0x3F) * 255 / 63);
-}
-
-uint8_t blue565(uint16_t c) {
-  return static_cast<uint8_t>((c & 0x1F) * 255 / 31);
-}
-
-uint16_t blend(uint16_t a, uint16_t b, uint8_t amount) {
-  uint16_t inv = 255 - amount;
-  return color((red565(a) * inv + red565(b) * amount) / 255,
-               (green565(a) * inv + green565(b) * amount) / 255,
-               (blue565(a) * inv + blue565(b) * amount) / 255);
 }
 
 void text(const lgfx::IFont *font, uint16_t fg, uint16_t bg, textdatum_t datum) {
@@ -248,7 +229,7 @@ void label(const char *value, int16_t x, int16_t y, uint16_t bg = C_BG) {
 }
 
 void valueText(const char *value, int16_t x, int16_t y, uint16_t bg = C_BG) {
-  text(&fonts::Orbitron_Light_24, C_TEXT, bg, top_left);
+  text(&fonts::FreeSansBold12pt7b, C_TEXT, bg, top_left);
   lcd.drawString(value, x, y);
 }
 
@@ -257,31 +238,29 @@ void card(const Rect &r, uint16_t fill = C_PANEL) {
   lcd.drawRoundRect(r.x, r.y, r.w, r.h, 8, C_LINE);
 }
 
-void chip(int16_t x, int16_t y, int16_t w, const char *caption, uint16_t accent) {
-  uint16_t fill = blend(C_PANEL_2, accent, 38);
-  lcd.fillRoundRect(x, y, w, 26, 6, fill);
-  lcd.fillCircle(x + 14, y + 13, 4, accent);
-  text(&fonts::Font2, C_TEXT, fill, middle_left);
-  lcd.drawString(caption, x + 26, y + 13);
-}
-
 void button(const Rect &r, const char *caption, bool active, uint16_t accent) {
   uint16_t fill = active ? accent : C_PANEL_2;
-  uint16_t fg = active ? C_BG : C_TEXT;
+  uint16_t fg = active ? C_PANEL : C_TEXT;
   lcd.fillRoundRect(r.x, r.y, r.w, r.h, 8, fill);
   lcd.drawRoundRect(r.x, r.y, r.w, r.h, 8, active ? accent : C_LINE);
-  text(&fonts::Orbitron_Light_24, fg, fill, middle_center);
+  text(&fonts::FreeSansBold12pt7b, fg, fill, middle_center);
   lcd.drawString(caption, r.x + r.w / 2, r.y + r.h / 2);
 }
 
-void header(const char *status, uint16_t accent) {
-  lcd.fillRect(0, 0, SCREEN_W, 58, C_BG);
-  lcd.fillRect(0, 57, SCREEN_W, 1, C_LINE);
-  lcd.fillRect(0, 58, SCREEN_W, 1, blend(C_BG, accent, 110));
+void outlineButton(const Rect &r, const char *caption, uint16_t accent) {
+  lcd.fillRoundRect(r.x, r.y, r.w, r.h, 8, C_PANEL);
+  lcd.drawRoundRect(r.x, r.y, r.w, r.h, 8, accent);
+  text(&fonts::FreeSansBold12pt7b, accent, C_PANEL, middle_center);
+  lcd.drawString(caption, r.x + r.w / 2, r.y + r.h / 2);
+}
 
-  text(&fonts::Orbitron_Light_24, C_TEXT, C_BG, top_left);
-  lcd.drawString("spinstatus", 22, 14);
-  chip(344, 16, 112, status, accent);
+void header(uint16_t accent) {
+  lcd.fillRect(0, 0, SCREEN_W, 66, C_HEADER);
+
+  text(&fonts::FreeSansBold18pt7b, C_PANEL, C_HEADER, top_left);
+  lcd.drawString("spinstatus", 22, 15);
+  lcd.fillCircle(438, 33, 6, C_PANEL);
+  lcd.fillCircle(438, 33, 3, accent);
 }
 
 TouchPoint readTouch() {
@@ -328,17 +307,17 @@ void saveTouchCalibration(const uint16_t data[8]) {
 
 void runTouchCalibration() {
   lcd.fillScreen(C_BG);
-  header("calibrate", C_CYAN);
-  centered("TOUCH CALIBRATION", SCREEN_W / 2, 116, &fonts::Orbitron_Light_24, C_TEXT);
+  header(C_ACCENT);
+  centered("TOUCH CALIBRATION", SCREEN_W / 2, 116, &fonts::FreeSansBold18pt7b, C_TEXT);
   centered("tap each target accurately", SCREEN_W / 2, 158, &fonts::Font2, C_MUTED);
   delay(700);
 
   uint16_t data[8] = {};
-  lcd.calibrateTouch(data, C_CYAN, C_BG, 14);
+  lcd.calibrateTouch(data, C_ACCENT, C_BG, 14);
   lcd.setTouchCalibrate(data);
   saveTouchCalibration(data);
   lcd.fillScreen(C_BG);
-  centered("CALIBRATION SAVED", SCREEN_W / 2, 150, &fonts::Orbitron_Light_24, C_GREEN);
+  centered("CALIBRATION SAVED", SCREEN_W / 2, 150, &fonts::FreeSansBold18pt7b, C_ACCENT);
   delay(900);
 }
 
@@ -350,7 +329,7 @@ void drawTimer(uint32_t seconds, const char *prefix, uint16_t fg, uint16_t bg) {
 
   lcd.fillRect(TIMER_VALUE_RECT.x, TIMER_VALUE_RECT.y, TIMER_VALUE_RECT.w,
                TIMER_VALUE_RECT.h, bg);
-  text(&fonts::Orbitron_Light_32, fg, bg, middle_center);
+  text(&fonts::FreeSansBold24pt7b, fg, bg, middle_center);
   lcd.drawString(value, SCREEN_W / 2, TIMER_VALUE_RECT.y + TIMER_VALUE_RECT.h / 2 + 4);
 }
 
@@ -369,49 +348,46 @@ void drawProgress(uint32_t remainingMs, uint16_t accent) {
 
 void drawWelcome() {
   lcd.fillScreen(C_BG);
-  header("access", C_CYAN);
+  header(C_ACCENT);
 
-  lcd.fillRoundRect(30, 84, 420, 174, 8, C_PANEL);
-  lcd.drawRoundRect(30, 84, 420, 174, 8, blend(C_LINE, C_CYAN, 80));
-  lcd.fillRect(WELCOME_SCAN_RECT.x, WELCOME_SCAN_RECT.y, WELCOME_SCAN_RECT.w,
-               WELCOME_SCAN_RECT.h, color(12, 17, 21));
+  Rect welcomeCard = {30, 112, 420, 116};
+  card(welcomeCard, C_PANEL);
+  lcd.fillCircle(102, 170, 26, C_ACCENT_SOFT);
+  lcd.drawRoundRect(90, 153, 24, 34, 3, C_ACCENT);
+  lcd.drawFastHLine(95, 161, 14, C_ACCENT);
+  lcd.drawFastHLine(95, 168, 14, C_ACCENT);
 
-  centered("spinstatus", SCREEN_W / 2, 118, &fonts::Orbitron_Light_32, C_TEXT, C_PANEL);
-  centered("WILDCARD", SCREEN_W / 2, 160, &fonts::Orbitron_Light_24, C_CYAN,
-           color(12, 17, 21));
-  centered("TOUCH TO ENTER", SCREEN_W / 2, 213, &fonts::Orbitron_Light_24, C_TEXT, C_PANEL);
-  centered("reader simulated", SCREEN_W / 2, 238, &fonts::Font2, C_MUTED, C_PANEL);
+  text(&fonts::FreeSansBold18pt7b, C_TEXT, C_PANEL, top_left);
+  lcd.drawString("TAP TO BEGIN", 154, 154);
 }
 
 void drawSetup() {
   lcd.fillScreen(C_BG);
-  header("ready", C_GREEN);
+  header(C_ACCENT);
 
   lcd.fillRoundRect(24, 78, 432, 106, 8, C_PANEL);
   lcd.drawRoundRect(24, 78, 432, 106, 8, C_LINE);
   label("LOAD SIZE", 40, 94, C_PANEL);
   for (uint8_t i = 0; i < 3; ++i) {
-    button(LOAD_BUTTONS[i], loadLabels[i], loadIndex == i, C_GREEN);
+    button(LOAD_BUTTONS[i], loadLabels[i], loadIndex == i, C_ACCENT);
   }
 
   lcd.fillRoundRect(24, 198, 214, 88, 8, C_PANEL);
   lcd.drawRoundRect(24, 198, 214, 88, 8, C_LINE);
   label("FABRIC", 40, 207, C_PANEL);
-  button(DELICATES_BUTTON, delicates ? "DELICATE" : "NORMAL", delicates, C_YELLOW);
+  button(DELICATES_BUTTON, delicates ? "DELICATE" : "NORMAL", delicates, C_ACCENT);
 
   lcd.fillRoundRect(258, 198, 198, 88, 8, C_PANEL);
-  lcd.drawRoundRect(258, 198, 198, 88, 8, blend(C_LINE, C_CYAN, 60));
-  label("DEMO CYCLE", 276, 207, C_PANEL);
-  button(START_BUTTON, "START", true, C_CYAN);
+  lcd.drawRoundRect(258, 198, 198, 88, 8, C_LINE);
+  button(START_BUTTON, "START", true, C_ACCENT);
 }
 
 void drawRunningFrame() {
   lcd.fillScreen(C_BG);
-  header("washing", C_CYAN);
+  header(C_ACCENT);
 
   lcd.fillRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8, C_PANEL);
-  lcd.drawRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8,
-                    blend(C_LINE, C_CYAN, 70));
+  lcd.drawRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8, C_LINE);
   label("TIME REMAINING", 52, 92, C_PANEL);
   char meta[48];
   snprintf(meta, sizeof(meta), "%s / %s", loadLabels[loadIndex],
@@ -421,71 +397,41 @@ void drawRunningFrame() {
   drawTimer(WASH_DURATION_MS / 1000, "", C_TEXT, C_PANEL);
 
   label("CYCLE PROGRESS", 44, 218);
-  drawProgress(WASH_DURATION_MS, C_CYAN);
-  button(FINISH_BUTTON, "FINISH", false, C_YELLOW);
-  lcd.fillRoundRect(MOTION_RECT.x, MOTION_RECT.y, MOTION_RECT.w, MOTION_RECT.h, 8, C_PANEL);
-  lcd.drawRoundRect(MOTION_RECT.x, MOTION_RECT.y, MOTION_RECT.w, MOTION_RECT.h, 8, C_LINE);
-  label("MOTION", MOTION_RECT.x + 14, MOTION_RECT.y + 8, C_PANEL);
+  drawProgress(WASH_DURATION_MS, C_ACCENT);
+  outlineButton(FINISH_BUTTON, "FINISH", C_ACCENT);
 
   lastSecondsShown = UINT32_MAX;
   lastProgressShown = UINT32_MAX;
-  lastMotionFrame = 0;
 }
 
 void drawIdleLoadedFrame() {
-  lcd.fillScreen(color(22, 9, 11));
-  header("idle", C_RED);
+  bool overdue = millis() - stateStartedAt >= IDLE_GRACE_MS;
+  idleOverdueShown = overdue;
+  uint16_t stateColor = overdue ? C_RED : C_READY;
+  uint16_t panelColor = overdue ? C_RED_PANEL : C_READY_PANEL;
+  uint16_t noticeFill = overdue ? C_RED_DARK : C_READY_SOFT;
 
-  lcd.fillRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8,
-                    color(33, 17, 19));
-  lcd.drawRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8, C_RED);
-  label("LOADED IDLE TIME", 52, 92, color(33, 17, 19));
-  drawTimer(0, "+", C_RED, color(33, 17, 19));
+  lcd.fillScreen(C_BG);
+  header(stateColor);
 
-  lcd.fillRoundRect(36, 214, 408, 26, 6, C_RED_DARK);
-  centered("CLOTHES HAVE NOT BEEN RETRIEVED", SCREEN_W / 2, 227,
-           &fonts::Font2, C_TEXT, C_RED_DARK);
+  lcd.fillRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8, panelColor);
+  lcd.drawRoundRect(TIMER_RECT.x, TIMER_RECT.y, TIMER_RECT.w, TIMER_RECT.h, 8, stateColor);
+  label("LOADED IDLE TIME", 52, 92, panelColor);
+  drawTimer(0, "+", stateColor, panelColor);
 
-  button(REMIND_BUTTON, remindFlash ? "SENT" : "REMIND", remindFlash, C_YELLOW);
-  button(RETRIEVED_BUTTON, "COLLECTED", true, C_GREEN);
+  lcd.fillRoundRect(36, 218, 408, 24, 6, noticeFill);
+  centered(overdue ? "GRACE PERIOD OVER - FAIR TO REMOVE" : "READY FOR PICKUP",
+           SCREEN_W / 2, 230, &fonts::Font2, stateColor, noticeFill);
+
+  if (remindFlash) {
+    button(REMIND_BUTTON, "SENT", true, C_ACCENT);
+  } else {
+    outlineButton(REMIND_BUTTON, "REMIND", C_ACCENT);
+  }
+  button(RETRIEVED_BUTTON, "COLLECTED", true, stateColor);
 
   lastSecondsShown = UINT32_MAX;
   lastProgressShown = UINT32_MAX;
-  lastMotionFrame = 0;
-}
-
-void drawMotion(uint32_t now) {
-  lcd.fillRect(MOTION_RECT.x + 92, MOTION_RECT.y + 11, MOTION_RECT.w - 112,
-               MOTION_RECT.h - 18, C_PANEL);
-
-  int16_t x0 = MOTION_RECT.x + 120;
-  int16_t y0 = MOTION_RECT.y + 17;
-  uint8_t phase = (now / MOTION_FRAME_MS) % 7;
-  for (uint8_t i = 0; i < 7; ++i) {
-    uint16_t c = i == phase ? C_CYAN : blend(C_PANEL, C_BLUE, 100);
-    lcd.fillRoundRect(x0 + i * 34, y0, 22, 12, 4, c);
-  }
-}
-
-void drawWelcomeScan(uint32_t now) {
-  lcd.fillRect(WELCOME_SCAN_RECT.x + 2, WELCOME_SCAN_RECT.y + 2,
-               WELCOME_SCAN_RECT.w - 4, WELCOME_SCAN_RECT.h - 4, color(12, 17, 21));
-
-  int16_t trackW = WELCOME_SCAN_RECT.w - 38;
-  int16_t x = WELCOME_SCAN_RECT.x + 19 + ((now / 9) % trackW);
-  lcd.fillRect(x - 16, WELCOME_SCAN_RECT.y + 12, 32, WELCOME_SCAN_RECT.h - 24,
-               blend(color(12, 17, 21), C_CYAN, 90));
-  lcd.drawFastVLine(x, WELCOME_SCAN_RECT.y + 8, WELCOME_SCAN_RECT.h - 16, C_CYAN);
-  centered("WILDCARD", SCREEN_W / 2, 160, &fonts::Orbitron_Light_24, C_CYAN,
-           color(12, 17, 21));
-}
-
-void drawIdlePulse(uint32_t now) {
-  uint8_t phase = (now / MOTION_FRAME_MS) % 12;
-  uint16_t c = phase < 6 ? blend(C_RED_DARK, C_RED, phase * 28)
-                         : blend(C_RED_DARK, C_RED, (11 - phase) * 28);
-  lcd.fillCircle(424, 92, 5, c);
-  lcd.drawCircle(424, 92, 12, blend(color(33, 17, 19), c, 110));
 }
 
 void changeState(ScreenState next) {
@@ -495,6 +441,7 @@ void changeState(ScreenState next) {
   lastProgressShown = UINT32_MAX;
   remindFlash = false;
   remindFlashUntil = 0;
+  idleOverdueShown = false;
   dirty = true;
 }
 
@@ -532,36 +479,27 @@ void updateRunning(uint32_t now) {
     lastSecondsShown = seconds;
   }
   if (progressStep != lastProgressShown) {
-    drawProgress(remaining, C_CYAN);
+    drawProgress(remaining, C_ACCENT);
     lastProgressShown = progressStep;
   }
 }
 
 void updateIdle(uint32_t now) {
+  bool overdue = now - stateStartedAt >= IDLE_GRACE_MS;
+  if (overdue != idleOverdueShown) {
+    drawIdleLoadedFrame();
+  }
+
   if (remindFlash && now > remindFlashUntil) {
     remindFlash = false;
-    button(REMIND_BUTTON, "REMIND", false, C_YELLOW);
+    outlineButton(REMIND_BUTTON, "REMIND", C_ACCENT);
   }
 
   uint32_t seconds = (now - stateStartedAt) / 1000;
   if (seconds != lastSecondsShown) {
-    drawTimer(seconds, "+", C_RED, color(33, 17, 19));
+    drawTimer(seconds, "+", overdue ? C_RED : C_READY,
+              overdue ? C_RED_PANEL : C_READY_PANEL);
     lastSecondsShown = seconds;
-  }
-}
-
-void updateMotion(uint32_t now) {
-  if (now - lastMotionFrame < MOTION_FRAME_MS) {
-    return;
-  }
-  lastMotionFrame = now;
-
-  if (state == ScreenState::Welcome) {
-    drawWelcomeScan(now);
-  } else if (state == ScreenState::Running) {
-    drawMotion(now);
-  } else if (state == ScreenState::IdleLoaded) {
-    drawIdlePulse(now);
   }
 }
 
@@ -601,7 +539,7 @@ void handleTouch(const TouchPoint &p) {
       if (REMIND_BUTTON.contains(p.x, p.y)) {
         remindFlash = true;
         remindFlashUntil = millis() + REMIND_FLASH_MS;
-        button(REMIND_BUTTON, "SENT", true, C_YELLOW);
+        button(REMIND_BUTTON, "SENT", true, C_ACCENT);
         Serial.println("Reminder requested");
         return;
       }
@@ -671,5 +609,4 @@ void loop() {
   uint32_t now = millis();
   pollTouch(now);
   tickUi(now);
-  updateMotion(now);
 }
