@@ -53,13 +53,19 @@ function applyPreviewScale() {
   const phoneLayout = isPhoneLayout();
   const baseWidth = phoneLayout ? 496 : 500;
   const baseHeight = phoneLayout ? 336 : 340;
-  const viewportPadding = phoneLayout ? 24 : 96;
+  const viewportPadding = phoneLayout ? 12 : 96;
   const viewportCap = Math.max(0.58, (window.innerWidth - viewportPadding) / baseWidth);
   const recordScale = document.body.classList.contains("record-mode") ? 1.72 : desiredScale;
   const nextScale = phoneLayout ? Math.min(recordScale, viewportCap) : recordScale;
 
   document.body.style.setProperty("--preview-scale", nextScale.toFixed(3));
   document.body.style.setProperty("--device-visual-height", `${Math.round(baseHeight * nextScale)}px`);
+
+  if (phoneLayout) {
+    closeIntro();
+    document.body.classList.remove("record-mode", "hide-captions");
+    recordButton.textContent = "Record mode";
+  }
 }
 
 function closeIntro() {

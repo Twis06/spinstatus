@@ -4,7 +4,7 @@ Static browser emulator for the 480 x 320 ESP32 washer panel for demonstration p
 
 Live: https://preview-mauve-gamma.vercel.app
 
-Desktop users get full demo controls. Phone users see a fitted preview first, with controls below the screen.
+Desktop users get full demo controls. Phone users see only the fitted machine interface.
 
 Idle color logic:
 

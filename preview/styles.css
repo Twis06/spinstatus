@@ -721,64 +721,32 @@ body.record-mode .caption-step {
 
 @media (max-width: 720px) {
   body {
-    background: linear-gradient(180deg, #f7f2ff 0%, #f9f7fd 100%);
+    overflow: hidden;
+    background: #171421;
   }
 
   .demo-app {
     min-height: 100svh;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
+    place-items: center;
   }
 
   .theater {
-    order: 1;
-    min-height: auto;
-    padding: 18px 14px 22px;
-    gap: 18px;
-    overflow: visible;
-    align-content: start;
+    width: 100vw;
+    min-height: 100svh;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    place-items: center;
+    align-content: center;
+    background: #171421;
   }
 
-  .control-dock {
-    order: 2;
-    padding: 18px 16px 24px;
-    gap: 16px;
-    border-top: 1px solid rgba(126, 96, 202, 0.12);
-    border-bottom: 0;
-    background: rgba(255, 255, 255, 0.9);
-  }
-
-  .dock-heading {
-    display: none;
-  }
-
-  .control-group {
-    gap: 8px;
-  }
-
-  .control-group h2 {
-    margin-bottom: 4px;
-  }
-
-  .segmented {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .segmented button,
-  .dock-button {
-    min-height: 40px;
-    font-size: 12px;
-  }
-
-  .field-row,
-  .toggle-row {
-    min-height: 38px;
-    font-size: 13px;
-  }
-
-  .field-row input[type="range"] {
-    width: min(44vw, 180px);
+  .control-dock,
+  .caption-line,
+  .intro-overlay {
+    display: none !important;
   }
 
   .soft-glow {
@@ -790,85 +758,20 @@ body.record-mode .caption-step {
     height: 320px;
     border-width: 8px;
     border-radius: 18px;
-    margin-bottom: calc(var(--device-visual-height) - 336px);
-    transform-origin: top center;
+    margin: 0;
+    transform-origin: center;
     box-shadow: 0 20px 46px rgba(70, 54, 111, 0.22);
   }
 
-  .caption-line {
-    width: 100%;
-    max-width: none;
-    min-height: auto;
-    padding: 13px 14px;
-    border-radius: 16px;
-    gap: 10px;
-  }
-
-  .caption-step {
-    min-width: 70px;
-    padding: 8px 10px;
-    font-size: 12px;
-  }
-
-  .caption-text {
-    font-size: 18px;
-    line-height: 1.22;
-  }
-
-  .intro-card {
-    width: calc(100vw - 28px);
-    padding: 26px;
-    border-radius: 18px;
-  }
-
-  .intro-card h2 {
-    font-size: 38px;
-  }
-
-  .intro-card span {
-    font-size: 18px;
-  }
-
-  .intro-actions {
-    flex-direction: column;
-  }
-
-  .intro-actions button {
-    width: 100%;
-  }
-
   body.record-mode .theater {
-    gap: 18px;
-    padding-top: 18px;
-  }
-
-  body.record-mode .caption-line {
-    max-width: none;
-    min-height: auto;
-    padding: 13px 14px;
-  }
-
-  body.record-mode .caption-text {
-    font-size: 20px;
-  }
-
-  body.record-mode .caption-step {
-    min-width: 74px;
-    font-size: 12px;
+    gap: 0;
+    padding: 0;
   }
 }
 
 @media (max-width: 420px) {
   .theater {
-    padding-inline: 10px;
-  }
-
-  .control-dock {
-    padding-inline: 12px;
-  }
-
-  .caption-text {
-    font-size: 16px;
+    padding: 0;
   }
 }
 
