@@ -13,6 +13,7 @@ const captionStep = document.querySelector("#caption-step");
 const captionText = document.querySelector("#caption-text");
 const introOverlay = document.querySelector("#intro-overlay");
 const recordButton = document.querySelector("#record-mode");
+const scaleInput = document.querySelector("#scale");
 const stateButtons = [...document.querySelectorAll("[data-preview-state]")];
 const views = [...document.querySelectorAll("[data-view]")];
 const loadButtons = [...document.querySelectorAll("[data-load]")];
@@ -21,6 +22,7 @@ let state = "welcome";
 let load = "MED";
 let delicates = false;
 let speed = 10;
+let desiredScale = 1.45;
 let stateStartedAt = performance.now();
 let remindTimeout = null;
 let demoRun = 0;
@@ -41,6 +43,23 @@ function formatTime(seconds, prefix = "") {
   const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, "0");
   const remainder = String(safeSeconds % 60).padStart(2, "0");
   return `${prefix}${minutes}:${remainder}`;
+}
+
+function isPhoneLayout() {
+  return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function applyPreviewScale() {
+  const phoneLayout = isPhoneLayout();
+  const baseWidth = phoneLayout ? 496 : 500;
+  const baseHeight = phoneLayout ? 336 : 340;
+  const viewportPadding = phoneLayout ? 24 : 96;
+  const viewportCap = Math.max(0.58, (window.innerWidth - viewportPadding) / baseWidth);
+  const recordScale = document.body.classList.contains("record-mode") ? 1.72 : desiredScale;
+  const nextScale = phoneLayout ? Math.min(recordScale, viewportCap) : recordScale;
+
+  document.body.style.setProperty("--preview-scale", nextScale.toFixed(3));
+  document.body.style.setProperty("--device-visual-height", `${Math.round(baseHeight * nextScale)}px`);
 }
 
 function closeIntro() {
@@ -237,6 +256,7 @@ recordButton.addEventListener("click", () => {
   recordButton.textContent = document.body.classList.contains("record-mode")
     ? "Exit record mode"
     : "Record mode";
+  applyPreviewScale();
 });
 
 document.querySelector("#caption-toggle").addEventListener("change", (event) => {
@@ -269,9 +289,12 @@ document.querySelector("#speed").addEventListener("change", (event) => {
   stateStartedAt = performance.now();
 });
 
-document.querySelector("#scale").addEventListener("input", (event) => {
-  document.documentElement.style.setProperty("--preview-scale", event.target.value);
+scaleInput.addEventListener("input", (event) => {
+  desiredScale = Number(event.target.value);
+  applyPreviewScale();
 });
+
+window.addEventListener("resize", applyPreviewScale);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
@@ -289,4 +312,5 @@ window.spinstatusPreview = {
 };
 
 setState("welcome");
+applyPreviewScale();
 requestAnimationFrame(frame);
